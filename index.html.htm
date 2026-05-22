@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Árbol Genealógico Académico — Jorge Milán Carrillo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Jost:wght@300;400;500&display=swap');
+
+  :root {
+    --navy:      #1a3a5c;
+    --navy-mid:  #2a5080;
+    --gold:      #c9a84c;
+    --gold-lt:   #e8d5a0;
+    --cream:     #f8f7f3;
+    --cream-dk:  #ede9e0;
+    --gray:      #8a8a8a;
+    --gray-lt:   #d4d0c8;
+    --shared:    #8b3a3a;
+    --white:     #ffffff;
+    --text-dk:   #1c1c1c;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--cream);
+    font-family: 'Jost', sans-serif;
+    color: var(--text-dk);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* ── Header ── */
+  #header {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: var(--navy);
+    padding: 12px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 2px 12px rgba(0,0,0,.25);
+  }
+  #header-left { display: flex; flex-direction: column; }
+  #header h1 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.25rem; font-weight: 600;
+    color: var(--white); letter-spacing: .03em;
+  }
+  #header .subtitle {
+    font-size: .7rem; color: var(--gold-lt);
+    letter-spacing: .12em; text-transform: uppercase; margin-top: 2px;
+  }
+  #header-logo {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 1.6rem; color: var(--gold);
+    letter-spacing: .05em; opacity: .7;
+  }
+
+  /* ── Toolbar ── */
+  #toolbar {
+    position: fixed; top: 62px; left: 50%; transform: translateX(-50%);
+    z-index: 100;
+    display: flex; gap: 6px;
+    background: rgba(255,255,255,.92);
+    border: 1px solid var(--gray-lt);
+    border-radius: 40px;
+    padding: 6px 14px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.10);
+    backdrop-filter: blur(8px);
+  }
+  .btn {
+    font-family: 'Jost', sans-serif;
+    font-size: .72rem; font-weight: 500; letter-spacing: .06em;
+    text-transform: uppercase;
+    padding: 6px 14px; border: none; border-radius: 20px; cursor: pointer;
+    transition: all .18s ease;
+  }
+  .btn-primary { background: var(--navy); color: var(--white); }
+  .btn-primary:hover { background: var(--navy-mid); }
+  .btn-secondary { background: transparent; color: var(--navy); border: 1px solid var(--navy); }
+  .btn-secondary:hover { background: var(--navy); color: var(--white); }
+  .btn-gold { background: var(--gold); color: var(--navy); }
+  .btn-gold:hover { background: var(--gold-lt); }
+  .btn-danger { background: transparent; color: var(--shared); border: 1px solid var(--shared); }
+  .btn-danger:hover { background: var(--shared); color: var(--white); }
+
+  /* ── Canvas ── */
+  #canvas {
+    position: fixed; top: 0; left: 0;
+    width: 100%; height: 100%;
+  }
+  svg { width: 100%; height: 100%; }
+
+  /* ── Links ── */
+  .link {
+    fill: none;
+    stroke: var(--gray-lt);
+    stroke-width: 1.5;
+    transition: stroke .2s;
+  }
+  .link-shared { stroke: #c9a84c66; }
+
+  /* ── Integrantes ── */
+  .node-group { cursor: pointer; }
+  .node-rect {
+    rx: 8; ry: 8;
+    transition: filter .15s;
+  }
+  .node-group:hover .node-rect { filter: brightness(1.08); }
+
+  .node-root .node-rect    { fill: var(--navy); stroke: var(--gold); stroke-width: 2; }
+  .node-l1 .node-rect      { fill: var(--navy-mid); stroke: var(--gold-lt); stroke-width: 1.5; }
+  .node-l2 .node-rect      { fill: var(--white); stroke: var(--gray-lt); stroke-width: 1; }
+  .node-shared .node-rect  { fill: #fdf5f5; stroke: var(--shared); stroke-width: 1.5; stroke-dasharray: 4,2; }
+
+  .node-label {
+    font-family: 'Jost', sans-serif;
+    dominant-baseline: middle;
+    text-anchor: middle;
+    pointer-events: none;
+    transition: opacity .2s;
+  }
+  .node-root .node-label   { fill: var(--white); font-size: 13px; font-weight: 500; }
+  .node-l1 .node-label     { fill: var(--white); font-size: 10.5px; font-weight: 400; }
+  .node-l2 .node-label     { fill: var(--navy); font-size: 9.5px; font-weight: 300; }
+  .node-shared .node-label { fill: var(--shared); font-size: 9.5px; font-weight: 400; }
+
+  .collapse-indicator {
+    font-size: 9px; fill: var(--gold); font-weight: 600;
+    dominant-baseline: middle; text-anchor: middle;
+    pointer-events: none;
+  }
+
+  /* ── Tooltip ── */
+  #tooltip {
+    position: fixed; z-index: 200;
+    background: var(--navy);
+    color: var(--white);
+    padding: 10px 14px;
+    border-radius: 8px;
+    border-left: 3px solid var(--gold);
+    font-size: .78rem;
+    max-width: 300px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .15s;
+    box-shadow: 0 4px 20px rgba(0,0,0,.3);
+  }
+  #tooltip .tt-name { font-weight: 500; margin-bottom: 4px; }
+  #tooltip .tt-meta { color: var(--gold-lt); font-size: .72rem; }
+  #tooltip .tt-shared { color: #f4a0a0; font-size: .72rem; margin-top: 4px; }
+
+  /* ── Panel de estadísticas ── */
+  #stats {
+    position: fixed; bottom: 20px; left: 20px; z-index: 100;
+    background: rgba(255,255,255,.93);
+    border: 1px solid var(--gray-lt);
+    border-radius: 12px;
+    padding: 14px 18px;
+    min-width: 230px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.10);
+    backdrop-filter: blur(6px);
+  }
+  #stats h3 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: .85rem; color: var(--navy);
+    margin-bottom: 10px; letter-spacing: .04em;
+    border-bottom: 1px solid var(--gold-lt); padding-bottom: 6px;
+  }
+  .stat-row {
+    display: flex; justify-content: space-between; gap: 12px;
+    font-size: .72rem; color: var(--gray);
+    margin: 5px 0;
+  }
+  .stat-val { font-weight: 500; color: var(--navy); white-space: nowrap; }
+
+  /* ── Leyenda ── */
+  #legend {
+    position: fixed; bottom: 20px; right: 20px; z-index: 100;
+    background: rgba(255,255,255,.93);
+    border: 1px solid var(--gray-lt);
+    border-radius: 12px;
+    padding: 14px 18px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.10);
+    backdrop-filter: blur(6px);
+  }
+  #legend h3 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: .85rem; color: var(--navy);
+    margin-bottom: 10px; letter-spacing: .04em;
+    border-bottom: 1px solid var(--gold-lt); padding-bottom: 6px;
+  }
+  .legend-item {
+    display: flex; align-items: center; gap: 8px;
+    font-size: .72rem; color: var(--gray); margin: 6px 0;
+  }
+  .legend-dot {
+    width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0;
+  }
+  .ld-root   { background: var(--navy); border: 2px solid var(--gold); }
+  .ld-l1     { background: var(--navy-mid); border: 1.5px solid var(--gold-lt); }
+  .ld-l2     { background: var(--white); border: 1px solid var(--gray-lt); }
+  .ld-shared { background: #fdf5f5; border: 1.5px dashed var(--shared); }
+
+  /* ── Panel de alertas ── */
+  #warnings-btn {
+    position: fixed; top: 108px; right: 20px; z-index: 100;
+  }
+  #warnings-panel {
+    position: fixed; top: 145px; right: 20px; z-index: 100;
+    background: rgba(255,255,255,.96);
+    border: 1px solid #f4c2a0;
+    border-left: 3px solid #c07030;
+    border-radius: 10px;
+    padding: 14px 16px;
+    max-width: 340px; max-height: 300px; overflow-y: auto;
+    display: none;
+    box-shadow: 0 2px 12px rgba(0,0,0,.12);
+    font-size: .72rem;
+  }
+  #warnings-panel h3 {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: .88rem; color: #7a3010; margin-bottom: 8px;
+  }
+  .warn-item { color: #5a3010; margin: 5px 0; padding: 4px 0; border-bottom: 1px solid #f4dece; }
+  .warn-type { font-weight: 500; color: #c07030; }
+
+  @media print {
+    #toolbar, #stats, #legend, #warnings-btn, #warnings-panel, #header { display: none !important; }
+    #canvas { top: 0; }
+    body { overflow: visible; }
+    svg { width: 100%; height: auto; }
+  }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div id="header-left">
+    <h1>Árbol Genealógico Académico de Jorge Milán Carrillo</h1>
+    <span class="subtitle">Facultad de Ciencias Químico Biológicas · Universidad Autónoma de Sinaloa</span>
+  </div>
+  <div id="header-logo">JMC</div>
+</div>
+
+<div id="toolbar">
+  <button class="btn btn-primary" onclick="centerView()">⌖ Centrar vista</button>
+  <button class="btn btn-secondary" onclick="expandAll()">▿ Expandir genealogía</button>
+  <button class="btn btn-secondary" onclick="collapseAll()">▸ Contraer genealogía</button>
+  <button class="btn btn-gold" onclick="window.print()">⎙ Exportar a PDF</button>
+</div>
+
+
+  <div class="warn-item"><span class="warn-type">Orden de apellidos invertido:</span> "Gaxiola Cuevas Nallely" — probable forma canónica: Nallely Gaxiola Cuevas</div>
+  <div class="warn-item"><span class="warn-type">Variante en el nombre de pila:</span> "Angrid Alina Guradado Norman" vs "Ingrid Alina Guradado Norman" — mismo apellido; probable registro duplicado de la misma persona</div>
+  <div class="warn-item"><span class="warn-type">Probable error tipográfico:</span> "Esim Sugey Sandoval Sicairos" vs "Eslim Sugey Sandoval Sicairos" — se recomienda verificar el registro original</div>
+  <div class="warn-item"><span class="warn-type">Apellidos transpuestos:</span> "Álvaro Rodríguez Montoya" (primera generación) vs "Álvaro Montoya Rodríguez" (descendencia de Roberto Gutiérrez Dorado) — probable mismo individuo</div>
+  <div class="warn-item"><span class="warn-type">Apellidos transpuestos:</span> "Dulce María Arispuro Dominguez" vs "Dulce María Domínguez Arispuro" — aparece además como integrante de la primera generación académica directa</div>
+  <div class="warn-item"><span class="warn-type">Probable registro duplicado:</span> "Maribel Dominguez Rodríguez" vs "Mariel Dominguez Rodriguez" — se recomienda cotejar con el registro oficial</div>
+  <div class="warn-item"><span class="warn-type">Filiación académica colegiada:</span> Evelyn Isabel Osuna Gallardo registra vínculo académico en tres líneas de descendencia: Saraid Mora Rochín, Edith Oliva Cuevas Rodríguez y Álvaro Rodríguez Montoya</div>
+  <div class="warn-item"><span class="warn-type">Filiación académica colegiada:</span> Nadia Judith del Río Ruiz Esparza registra vínculo académico en las líneas de Mariela Menchaca Armenta y Jesus Aguayo Rojas</div>
+  <div class="warn-item"><span class="warn-type">Filiación académica colegiada:</span> María Fernanda Álvarez Casillas — vínculo académico en las líneas de Edith Oliva Cuevas Rodríguez y Dulce María Arispuro Dominguez</div>
+  <div class="warn-item"><span class="warn-type">Filiación académica colegiada:</span> Maciel Rivera Atondo — vínculo académico en las líneas de Edith Oliva Cuevas Rodríguez y Oscar Abel Sánchez Velázquez</div>
+  <div class="warn-item"><span class="warn-type">Filiación académica colegiada:</span> Ana Rocío Cervantes Osuna — vínculo académico en las líneas de Oscar Daniel Arguelles López y Álvaro Rodríguez Montoya</div>
+  <div class="warn-item"><span class="warn-type">Filiación académica colegiada:</span> Ramona Julieta Espinoza Moreno — vínculo académico en las líneas de Saraid Mora Rochín y Roberto Gutiérrez Dorado</div>
+  <div class="warn-item"><span class="warn-type">Filiación académica colegiada:</span> Jesús Horacio Pérez Uriarte — vínculo académico en las líneas de Saraid Mora Rochín y Roberto Gutiérrez Dorado</div>
+  <div class="warn-item"><span class="warn-type">Registro duplicado en la misma línea:</span> Carlos Francisco Ramos Ferra aparece dos veces dentro de la descendencia de Roberto Gutiérrez Dorado</div>
+  <div class="warn-item"><span class="warn-type">Registro duplicado en la misma línea:</span> María del Rosario Galindo Atienzo aparece dos veces dentro de la descendencia de Roberto Gutiérrez Dorado</div>
+</div>
+
+<div id="canvas"></div>
+
+<div id="tooltip">
+  <div class="tt-name" id="tt-name"></div>
+  <div class="tt-meta" id="tt-meta"></div>
+  <div class="tt-shared" id="tt-shared"></div>
+</div>
+
+<div id="stats">
+  <h3>Estadísticas de la genealogía académica</h3>
+  <div class="stat-row"><span>Raíz académica</span><span class="stat-val">1</span></div>
+  <div class="stat-row"><span>Primera generación académica directa</span><span class="stat-val">10</span></div>
+  <div class="stat-row"><span>Descendencia académica registrada</span><span class="stat-val">139</span></div>
+  <div class="stat-row"><span>Total de integrantes de la genealogía</span><span class="stat-val">150</span></div>
+  <div class="stat-row"><span>Trayectorias con filiación colegiada</span><span class="stat-val">12</span></div>
+  <div class="stat-row"><span>Línea de descendencia más extensa</span><span class="stat-val">Roberto G.D. (43)</span></div>
+</div>
+
+<div id="legend">
+  <h3>Leyenda</h3>
+  <div class="legend-item"><div class="legend-dot ld-root"></div><span>Raíz académica — Jorge Milán Carrillo</span></div>
+  <div class="legend-item"><div class="legend-dot ld-l1"></div><span>Primera generación académica directa</span></div>
+  <div class="legend-item"><div class="legend-dot ld-l2"></div><span>Descendencia académica</span></div>
+  <div class="legend-item"><div class="legend-dot ld-shared"></div><span>Filiación académica colegiada</span></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════
+//  DATOS — Genealogía académica de Jorge Milán Carrillo
+// ═══════════════════════════════════════════════════════════════════
+const rawData = {
+  root: "Jorge Milán Carrillo",
+  branches: [
+    {
+      name: "Saraid Mora Rochín",
+      children: [
+        "Nallely Gaxiola Cuevas","Hadita Sulami Bravo Pérez","Diego Missael Angulo Serrano",
+        "Yazmín Brisceida Jiménez Nevárez","Mariela Menchaca Armenta","Ana Belinda Corrales Bañuelos",
+        "Patricia Fabiola Ramírez Corvera","Ramona Julieta Espinoza Moreno","Jesús Horacio Pérez Uriarte",
+        "César Leonel Quintero López","Evelyn Isabel Osuna Gallardo","Laura Armida López Gastélum",
+        "Pedro Antonio Alapizco Figueroa","Ángel Rádames Rábago Monzón","Carlos Iván Sepúlveda García",
+        "Jocelyn Palmira Cristerna Díaz","Itzel Fernanda Parra Aguilar","María Isabel Apodaca Mancinas",
+        "Gissele Guzmán Rivera","Nora Jocelyn Leyva García","Gloria Susana Meza López",
+        "Alejandra Daniela Jiménez Soberanes","Rosario Karely Ibarra Medina","Carlos Daniel Martínez Camacho",
+        "Daniel Alexis Rodríguez Heráldez","Alma Haidee Astorga Gaxiola","Karely Vianey Vázquez Marquéz",
+        "Mariana Guadalupe Molina Martínez","Samantha Ochoa Sandoval","Clarissa Yamileth Brito Santibañez",
+        "Barbara Raquel Martínez Valenzuela"
+      ]
+    },
+    {
+      name: "Roberto Gutiérrez Dorado",
+      children: [
+        "Jorge Rodolfo León Murillo","Dana Celia Beltrán Monge","Dulce Patricia Medina Rodelo",
+        "Carlos Francisco Ramos Ferra","Gabriela Ruelas Montoya","Laura Celeste Gámez Valdez",
+        "Grissel Reyna Fuentes","Marco Cesar Villanazul Verdugo","Zaida Viviana López Olivas",
+        "Christian Denisse Chavarín Martínez","Jennifer Vianey Félix Medina","María Romina Flores Peña",
+        "Katya Elizabeth Arechiga Chávez","Maria Magdalena Rivera Salas","Oscar Daniel Argüelles López",
+        "Fernando Salas López","Juan Martín Martínez Audelo","Ana Carmen Llanes Macías",
+        "Demis Alexis Rubio Ruiz","Martín Castro López","María del Rosario Galindo Atienzo",
+        "Mario Armando Gómez Favela","Malenny Rivas Medina","Melissa de Jesús Vega Burgueño",
+        "Luis Angel Cabanillas Bojórquez","Ana Luisa Félix Sámano","Ramona Julieta Espinoza Moreno",
+        "Brenda Karely Padilla Bon","Francisco Javier Valdez González","Junio Flores Castellanos",
+        "Janitzio Xiomara Korina Perales","Jesús Horacio Pérez Uriarte","Jessica Quintana Nájera",
+        "Rodolfo Alfredo Partida Preciado","Alba Luz Leal López","Abraham Calderón Castro",
+        "Graciela Yaneth Angulo Meza","Ibo Alejandro Almanza","Libia Lizbeth Armenta López",
+        "Magnolia Montoya Mejía","Evangelina García Armenta","Maria Lilia Guzmán Uriarte",
+        "Álvaro Montoya Rodríguez"
+      ]
+    },
+    {
+      name: "Mariela Menchaca Armenta",
+      children: [
+        "Nadia Judith del Río Ruiz Esparza","Angrid Alina Guradado Norman",
+        "Angela Alegna Peralta González","Jimena Duarte Valdez","Sebastian Jimenez Chavarín"
+      ]
+    },
+    {
+      name: "Jesus Aguayo Rojas",
+      children: [
+        "Nadia Judith del Río Ruiz Esparza","Ingrid Alina Guradado Norman","Anel Zavala Verdugo",
+        "María Elizabeth Álvarez Jara","Patricia Dorado Félix","María Guadalupe Varela Elizalde",
+        "Daffne Jaqueline Andrea Aguilar Moreno","Mirna Guadalupe Briseño Martínez",
+        "Scarlet Estefania Echaniz Ortega","Eduardo David Alfaro Dominguez","Ana Sofía Mauricio Salas"
+      ]
+    },
+    {
+      name: "Edith Oliva Cuevas Rodríguez",
+      children: [
+        "Oscar Abel Sánchez Velázquez","Antonio Gurrola Ríos","Oscar Gerardo Figueroa Salcido",
+        "Vida Mariel López Peñuelas","Evelyn Isabel Osuna Gallardo","Ana Paulina Contreras Avendaño",
+        "Miriam Yukie Barraza Caldera","Fedra Carolina López Villa","María Fernanda Álvarez Casillas",
+        "Jeannet Cháavez Ontiveros","Kevin de Jesús Díaz Hernandez","Ana Patricia Islas Zamorano",
+        "Edoardo López Vargas","Aliette Gastélum Ávila","Astrid Sosa Cornejo","Maciel Rivera Atondo",
+        "Ana Carolina Gastélum Hernandez","Dulce María Arispuro Dominguez","Hector Manuel Fonseca Peralta",
+        "Daniela Guardado Felix","Diana Josefina Zazueta López","Ana María Bañuelos Piña",
+        "Yudith Escobar Zúñiga","Natalia Josefina Salcido Luque","Ernesto Guadalupe Lugo Martínez",
+        "César Leonel Quintero López","Sthephanie Azahalia Rodríguez Espitia","Gabriela Terán Bobadilla",
+        "Daysi Gloria Silvia Mendes","Kendra Bladenebro Ojeda","Damaris Amabel Mendoza Martínez",
+        "Ivan Elsías Díaz Vázquez","Brayan Alexis Martínez Sillas"
+      ]
+    },
+    {
+      name: "Oscar Daniel Arguelles López",
+      children: ["Ana Rocío Cervantes Osuna"]
+    },
+    {
+      name: "Oscar Abel Sánchez Velázquez",
+      children: ["Maciel Rivera Atondo"]
+    },
+    {
+      name: "Álvaro Rodríguez Montoya",
+      children: [
+        "Ana Rocío Cervantes Osuna","Evelyn Isabel Osuna Gallardo","Mariel Dominguez Rodriguez",
+        "Eslim Sugey Sandoval Sicairos","Juan Alfredo Avendaño Castro",
+        "Perla Guadalupe Araujo Tellez","Eduardo Alberto Vargas Zamudio"
+      ]
+    },
+    {
+      name: "Eslim Sugey Sandoval Sicairos",
+      children: ["Valeria Salazar Montoya","Vanessa Jazmín Díaz Olivas"]
+    },
+    {
+      name: "Dulce María Arispuro Dominguez",
+      children: ["Jesus Alexis Esparza Álvarez","María Fernanda Álvarez Casillas"]
+    }
+  ]
+};
+
+// ─── Detección de filiación colegiada ───────────────────────────
+function normalize(s) {
+  return s.trim().toLowerCase().replace(/\.$/, '').replace(/\s+/g,' ');
+}
+const nameCount = {};
+rawData.branches.forEach(b => {
+  b.children.forEach(c => {
+    const k = normalize(c);
+    nameCount[k] = (nameCount[k]||0) + 1;
+  });
+});
+const sharedSet = new Set(Object.keys(nameCount).filter(k => nameCount[k] > 1));
+function isShared(name) { return sharedSet.has(normalize(name)); }
+
+// ─── Construcción de la jerarquía ───────────────────────────────
+const treeData = {
+  id: "root",
+  name: rawData.root,
+  level: 0,
+  children: rawData.branches.map((b, bi) => ({
+    id: `l1-${bi}`,
+    name: b.name,
+    level: 1,
+    branchIdx: bi,
+    shared: isShared(b.name),
+    children: b.children.map((c, ci) => ({
+      id: `l2-${bi}-${ci}`,
+      name: c.trim().replace(/\.$/, ''),
+      level: 2,
+      branchIdx: bi,
+      shared: isShared(c)
+    }))
+  }))
+};
+
+// ═══════════════════════════════════════════════════════════════════
+//  RENDERIZADO D3
+// ═══════════════════════════════════════════════════════════════════
+const W = window.innerWidth, H = window.innerHeight;
+const cx = W / 2, cy = H / 2;
+
+const svg = d3.select("#canvas")
+  .append("svg")
+  .attr("viewBox", `0 0 ${W} ${H}`)
+  .attr("preserveAspectRatio","xMidYMid meet");
+
+svg.append("rect").attr("width",W).attr("height",H).attr("fill","#f8f7f3");
+
+const g = svg.append("g").attr("id","tree-g");
+
+const zoom = d3.zoom()
+  .scaleExtent([0.12, 3])
+  .on("zoom", e => g.attr("transform", e.transform));
+svg.call(zoom);
+
+// ─── Dimensiones de integrantes ─────────────────────────────────
+const NODE_W_ROOT = 200, NODE_H_ROOT = 38;
+const NODE_W_L1   = 168, NODE_H_L1   = 30;
+const NODE_W_L2   = 152, NODE_H_L2   = 24;
+
+function nodeW(d) { return d.depth===0 ? NODE_W_ROOT : d.depth===1 ? NODE_W_L1 : NODE_W_L2; }
+function nodeH(d) { return d.depth===0 ? NODE_H_ROOT : d.depth===1 ? NODE_H_L1 : NODE_H_L2; }
+function nodeClass(d) {
+  if (d.depth===0) return "node-root";
+  if (d.depth===1) return "node-l1";
+  if (d.data.shared) return "node-shared";
+  return "node-l2";
+}
+
+// ─── Expandir / contraer ────────────────────────────────────────
+function collapse(d) {
+  if (d.children) { d._children = d.children; d.children = null; }
+}
+function expand(d) {
+  if (d._children) { d.children = d._children; d._children = null; }
+}
+
+let root = d3.hierarchy(treeData);
+root.x0 = 0; root.y0 = 0;
+root.children.forEach(c => { collapse(c); });
+
+// ─── Diseño radial ──────────────────────────────────────────────
+function computeLayout(root) {
+  const totalLeaves = root.children
+    ? root.children.reduce((s,c) => s + (c.children ? c.children.length : c._children ? c._children.length : 1), 0)
+    : 1;
+
+  const treeLayout = d3.tree()
+    .size([2*Math.PI, 360])
+    .separation((a,b) => {
+      const base = a.parent === b.parent ? 1 : 2;
+      return base / Math.max(1, Math.log(totalLeaves));
+    });
+
+  treeLayout(root);
+
+  root.each(d => {
+    const r = d.depth === 0 ? 0 : d.depth === 1 ? 230 : 430;
+    d.x_cart = r * Math.cos(d.x - Math.PI/2);
+    d.y_cart = r * Math.sin(d.x - Math.PI/2);
+  });
+}
+
+// ─── Etiquetas del tooltip ──────────────────────────────────────
+function getLevelLabel(d) {
+  if (d.depth===0) return "Raíz académica de la genealogía";
+  if (d.depth===1) return "Primera generación académica directa";
+  return "Descendencia académica";
+}
+
+function getSharedLines(name) {
+  const k = normalize(name);
+  if (!sharedSet.has(k)) return null;
+  const lines = [];
+  rawData.branches.forEach(b => {
+    if (b.children.some(c => normalize(c) === k)) lines.push(b.name);
+    if (normalize(b.name) === k) lines.unshift("(primera generación académica directa)");
+  });
+  return lines;
+}
+
+// ─── Dibujo principal ───────────────────────────────────────────
+const tooltip = document.getElementById("tooltip");
+
+function update() {
+  computeLayout(root);
+
+  const nodes = root.descendants();
+  const links = root.links();
+
+  // Vínculos
+  const linkData = g.selectAll(".link").data(links, d => d.target.data.id);
+
+  linkData.enter().append("path")
+    .attr("class", d => "link" + (d.target.data.shared ? " link-shared":""))
+    .attr("opacity",0)
+  .merge(linkData)
+    .transition().duration(500)
+    .attr("opacity",1)
+    .attr("d", d => {
+      const sx = d.source.x_cart, sy = d.source.y_cart;
+      const tx = d.target.x_cart, ty = d.target.y_cart;
+      const mx = (sx+tx)/2, my = (sy+ty)/2;
+      return `M${sx},${sy} C${mx},${sy} ${mx},${ty} ${tx},${ty}`;
+    });
+
+  linkData.exit().transition().duration(300).attr("opacity",0).remove();
+
+  // Integrantes
+  const nodeData = g.selectAll(".node-group").data(nodes, d => d.data.id);
+
+  const nodeEnter = nodeData.enter().append("g")
+    .attr("class", d => `node-group ${nodeClass(d)}`)
+    .attr("transform", d => `translate(${d.x_cart},${d.y_cart})`)
+    .attr("opacity", 0)
+    .on("click", (event, d) => {
+      event.stopPropagation();
+      if (d.depth > 0) {
+        if (d.children) collapse(d); else expand(d);
+        update();
+      }
+    })
+    .on("mouseover", (event, d) => {
+      const lines = d.depth > 0 ? getSharedLines(d.data.name) : null;
+      document.getElementById("tt-name").textContent = d.data.name;
+      document.getElementById("tt-meta").textContent = getLevelLabel(d);
+      const sharedEl = document.getElementById("tt-shared");
+      if (lines && lines.length > 1) {
+        sharedEl.textContent = "Registra vínculo académico en: " + lines.join(" · ");
+        sharedEl.style.display = "block";
+      } else {
+        sharedEl.style.display = "none";
+      }
+      tooltip.style.opacity = 1;
+    })
+    .on("mousemove", event => {
+      tooltip.style.left = (event.clientX + 14) + "px";
+      tooltip.style.top  = (event.clientY - 10) + "px";
+    })
+    .on("mouseout", () => { tooltip.style.opacity = 0; });
+
+  nodeEnter.append("rect")
+    .attr("class","node-rect")
+    .attr("x", d => -nodeW(d)/2)
+    .attr("y", d => -nodeH(d)/2)
+    .attr("width", d => nodeW(d))
+    .attr("height", d => nodeH(d));
+
+  function wrapText(sel) {
+    sel.each(function(d) {
+      const el = d3.select(this);
+      const words = d.data.name.split(" ");
+      const lineH = d.depth === 0 ? 14 : d.depth === 1 ? 12 : 11;
+      let line1 = "", line2 = "";
+      if (words.length <= 3) {
+        line1 = words.slice(0,2).join(" ");
+        line2 = words.slice(2).join(" ");
+      } else {
+        line1 = words.slice(0,2).join(" ");
+        line2 = words.slice(2,5).join(" ") + (words.length>5?"…":"");
+      }
+      if (!line2) {
+        el.append("tspan").attr("x",0).attr("dy",0).text(line1);
+      } else {
+        el.append("tspan").attr("x",0).attr("dy", -lineH/2).text(line1);
+        el.append("tspan").attr("x",0).attr("dy", lineH).text(line2);
+      }
+    });
+  }
+
+  nodeEnter.append("text")
+    .attr("class","node-label")
+    .call(wrapText);
+
+  nodeEnter.filter(d => d.depth===1).append("text")
+    .attr("class","collapse-indicator ci")
+    .attr("x", d => nodeW(d)/2 - 10)
+    .attr("y", d => -nodeH(d)/2 + 8);
+
+  const nodeMerge = nodeEnter.merge(nodeData);
+
+  nodeMerge.transition().duration(500)
+    .attr("transform", d => `translate(${d.x_cart},${d.y_cart})`)
+    .attr("opacity",1)
+    .attr("class", d => `node-group ${nodeClass(d)}`);
+
+  nodeMerge.select(".ci")
+    .text(d => d.children ? "▾" : d._children ? "▸" : "");
+
+  nodeData.exit().transition().duration(300).attr("opacity",0).remove();
+}
+
+update();
+centerView();
+
+function centerView() {
+  svg.transition().duration(600).call(
+    zoom.transform,
+    d3.zoomIdentity.translate(cx, cy).scale(0.55)
+  );
+}
+
+function expandAll() {
+  root.each(d => { if (d._children) { d.children = d._children; d._children = null; } });
+  update();
+}
+
+function collapseAll() {
+  root.children.forEach(c => collapse(c));
+  update();
+}
+
+function toggleWarnings() {
+  const p = document.getElementById("warnings-panel");
+  p.style.display = p.style.display === "none" ? "block" : "none";
+}
+
+window.addEventListener("resize", () => {
+  svg.attr("viewBox",`0 0 ${window.innerWidth} ${window.innerHeight}`);
+});
+</script>
+</body>
+</html>
