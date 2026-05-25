@@ -24,13 +24,22 @@
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
+  html {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+
   body {
     background: var(--cream);
     font-family: 'Jost', sans-serif;
     color: var(--text-dk);
     overflow: hidden;
+    overflow-x: hidden;
     height: 100vh;
-    width: 100vw;
+    height: 100dvh;
+    width: 100%;
+    max-width: 100vw;
   }
 
   /* ── Header ── */
@@ -226,6 +235,127 @@
   .warn-item { color: #5a3010; margin: 5px 0; padding: 4px 0; border-bottom: 1px solid #f4dece; }
   .warn-type { font-weight: 500; color: #c07030; }
 
+
+  /* ── Ajustes responsivos para celular / iframe Google Sites ── */
+  @media (max-width: 768px) {
+    body {
+      touch-action: none;
+    }
+
+    #header {
+      padding: 10px 14px;
+      min-height: 78px;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    #header h1 {
+      font-size: clamp(1.05rem, 5.2vw, 1.55rem);
+      line-height: 1.08;
+      letter-spacing: .02em;
+      max-width: calc(100vw - 72px);
+    }
+
+    #header .subtitle {
+      display: none;
+    }
+
+    #header-logo {
+      font-size: 1.35rem;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    #toolbar {
+      top: 78px;
+      left: 0;
+      right: 0;
+      transform: none;
+      width: 100%;
+      max-width: 100vw;
+      justify-content: flex-start;
+      gap: 8px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      border-left: 0;
+      border-right: 0;
+      border-radius: 0;
+      padding: 8px 10px;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+
+    #toolbar::-webkit-scrollbar {
+      display: none;
+    }
+
+    .btn {
+      flex: 0 0 auto;
+      font-size: .64rem;
+      line-height: 1.15;
+      letter-spacing: .045em;
+      padding: 7px 11px;
+      border-radius: 18px;
+      max-width: 132px;
+      white-space: normal;
+      text-align: center;
+    }
+
+    #canvas {
+      inset: 0;
+      width: 100%;
+      height: 100dvh;
+    }
+
+    #stats {
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      min-width: 0;
+      width: auto;
+      max-height: 132px;
+      overflow-y: auto;
+      padding: 12px 14px;
+      border-radius: 14px;
+    }
+
+    #stats h3 {
+      font-size: .95rem;
+      margin-bottom: 7px;
+      padding-bottom: 5px;
+    }
+
+    .stat-row {
+      font-size: .68rem;
+      gap: 8px;
+      margin: 3px 0;
+    }
+
+    #legend {
+      display: none;
+    }
+
+    #warnings-btn,
+    #warnings-panel {
+      display: none !important;
+    }
+
+    #tooltip {
+      display: none;
+    }
+  }
+
+  @media (max-width: 420px) {
+    #stats {
+      max-height: 112px;
+    }
+
+    .stat-row {
+      font-size: .64rem;
+    }
+  }
+
+
   @media print {
     #toolbar, #stats, #legend, #warnings-btn, #warnings-panel, #header { display: none !important; }
     #canvas { top: 0; }
@@ -251,7 +381,9 @@
   <button class="btn btn-gold" onclick="window.print()">⎙ Exportar a PDF</button>
 </div>
 
-
+<button id="warnings-btn" class="btn btn-danger" onclick="toggleWarnings()">⚠ Revisar registros</button>
+<div id="warnings-panel">
+  <h3>Alertas de consistencia del registro</h3>
   <div class="warn-item"><span class="warn-type">Orden de apellidos invertido:</span> "Gaxiola Cuevas Nallely" — probable forma canónica: Nallely Gaxiola Cuevas</div>
   <div class="warn-item"><span class="warn-type">Variante en el nombre de pila:</span> "Angrid Alina Guradado Norman" vs "Ingrid Alina Guradado Norman" — mismo apellido; probable registro duplicado de la misma persona</div>
   <div class="warn-item"><span class="warn-type">Probable error tipográfico:</span> "Esim Sugey Sandoval Sicairos" vs "Eslim Sugey Sandoval Sicairos" — se recomienda verificar el registro original</div>
@@ -267,6 +399,7 @@
   <div class="warn-item"><span class="warn-type">Filiación académica colegiada:</span> Jesús Horacio Pérez Uriarte — vínculo académico en las líneas de Saraid Mora Rochín y Roberto Gutiérrez Dorado</div>
   <div class="warn-item"><span class="warn-type">Registro duplicado en la misma línea:</span> Carlos Francisco Ramos Ferra aparece dos veces dentro de la descendencia de Roberto Gutiérrez Dorado</div>
   <div class="warn-item"><span class="warn-type">Registro duplicado en la misma línea:</span> María del Rosario Galindo Atienzo aparece dos veces dentro de la descendencia de Roberto Gutiérrez Dorado</div>
+</div>
 </div>
 
 <div id="canvas"></div>
@@ -435,15 +568,21 @@ const treeData = {
 // ═══════════════════════════════════════════════════════════════════
 //  RENDERIZADO D3
 // ═══════════════════════════════════════════════════════════════════
-const W = window.innerWidth, H = window.innerHeight;
-const cx = W / 2, cy = H / 2;
+let W = window.innerWidth;
+let H = window.innerHeight;
+let cx = W / 2;
+let cy = H / 2;
+
+function isMobileViewport() {
+  return window.matchMedia("(max-width: 768px)").matches;
+}
 
 const svg = d3.select("#canvas")
   .append("svg")
   .attr("viewBox", `0 0 ${W} ${H}`)
   .attr("preserveAspectRatio","xMidYMid meet");
 
-svg.append("rect").attr("width",W).attr("height",H).attr("fill","#f8f7f3");
+const bg = svg.append("rect").attr("width",W).attr("height",H).attr("fill","#f8f7f3");
 
 const g = svg.append("g").attr("id","tree-g");
 
@@ -633,9 +772,16 @@ update();
 centerView();
 
 function centerView() {
+  const mobile = isMobileViewport();
+  const scale = mobile
+    ? Math.max(0.32, Math.min(0.48, (W - 28) / 980))
+    : 0.55;
+
+  const yOffset = mobile ? H * 0.46 : cy;
+
   svg.transition().duration(600).call(
     zoom.transform,
-    d3.zoomIdentity.translate(cx, cy).scale(0.55)
+    d3.zoomIdentity.translate(cx, yOffset).scale(scale)
   );
 }
 
@@ -655,7 +801,16 @@ function toggleWarnings() {
 }
 
 window.addEventListener("resize", () => {
-  svg.attr("viewBox",`0 0 ${window.innerWidth} ${window.innerHeight}`);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  cx = W / 2;
+  cy = H / 2;
+
+  svg.attr("viewBox",`0 0 ${W} ${H}`);
+  bg.attr("width", W).attr("height", H);
+
+  update();
+  centerView();
 });
 </script>
 </body>
