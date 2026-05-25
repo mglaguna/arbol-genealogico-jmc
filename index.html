@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=yes"/>
 <title>Árbol Genealógico Académico — Jorge Milán Carrillo</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 <style>
@@ -17,7 +17,6 @@
     --cream-dk:  #ede9e0;
     --gray:      #8a8a8a;
     --gray-lt:   #d4d0c8;
-    --shared:    #8b3a3a;
     --white:     #ffffff;
     --text-dk:   #1c1c1c;
   }
@@ -49,8 +48,10 @@
     padding: 12px 24px;
     display: flex; align-items: center; justify-content: space-between;
     box-shadow: 0 2px 12px rgba(0,0,0,.25);
+    height: auto;
+    min-height: 62px;
   }
-  #header-left { display: flex; flex-direction: column; }
+  #header-left { display: flex; flex-direction: column; flex: 1; }
   #header h1 {
     font-family: 'Cormorant Garamond', serif;
     font-size: 1.25rem; font-weight: 600;
@@ -63,27 +64,36 @@
   #header-logo {
     font-family: 'Cormorant Garamond', serif;
     font-size: 1.6rem; color: var(--gold);
-    letter-spacing: .05em; opacity: .7;
+    letter-spacing: .05em; opacity: .7; flex-shrink: 0; margin-left: 16px;
   }
 
   /* ── Toolbar ── */
   #toolbar {
-    position: fixed; top: 62px; left: 50%; transform: translateX(-50%);
+    position: fixed; top: 62px; left: 0; right: 0;
     z-index: 100;
     display: flex; gap: 6px;
-    background: rgba(255,255,255,.92);
-    border: 1px solid var(--gray-lt);
-    border-radius: 40px;
-    padding: 6px 14px;
-    box-shadow: 0 2px 10px rgba(0,0,0,.10);
-    backdrop-filter: blur(8px);
+    background: rgba(255,255,255,.95);
+    border-bottom: 1px solid var(--gray-lt);
+    padding: 8px 12px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    justify-content: center;
   }
+  
+  #toolbar::-webkit-scrollbar {
+    display: none;
+  }
+
   .btn {
     font-family: 'Jost', sans-serif;
     font-size: .72rem; font-weight: 500; letter-spacing: .06em;
     text-transform: uppercase;
-    padding: 6px 14px; border: none; border-radius: 20px; cursor: pointer;
+    padding: 8px 14px; border: none; border-radius: 20px; cursor: pointer;
     transition: all .18s ease;
+    flex-shrink: 0;
+    white-space: nowrap;
   }
   .btn-primary { background: var(--navy); color: var(--white); }
   .btn-primary:hover { background: var(--navy-mid); }
@@ -91,15 +101,13 @@
   .btn-secondary:hover { background: var(--navy); color: var(--white); }
   .btn-gold { background: var(--gold); color: var(--navy); }
   .btn-gold:hover { background: var(--gold-lt); }
-  .btn-danger { background: transparent; color: var(--shared); border: 1px solid var(--shared); }
-  .btn-danger:hover { background: var(--shared); color: var(--white); }
 
   /* ── Canvas ── */
   #canvas {
     position: fixed; top: 0; left: 0;
     width: 100%; height: 100%;
   }
-  svg { width: 100%; height: 100%; }
+  svg { width: 100%; height: 100%; display: block; touch-action: manipulation; }
 
   /* ── Links ── */
   .link {
@@ -108,7 +116,6 @@
     stroke-width: 1.5;
     transition: stroke .2s;
   }
-  .link-shared { stroke: #c9a84c66; }
 
   /* ── Integrantes ── */
   .node-group { cursor: pointer; }
@@ -121,7 +128,7 @@
   .node-root .node-rect    { fill: var(--navy); stroke: var(--gold); stroke-width: 2; }
   .node-l1 .node-rect      { fill: var(--navy-mid); stroke: var(--gold-lt); stroke-width: 1.5; }
   .node-l2 .node-rect      { fill: var(--white); stroke: var(--gray-lt); stroke-width: 1; }
-  .node-shared .node-rect  { fill: #fdf5f5; stroke: var(--shared); stroke-width: 1.5; stroke-dasharray: 4,2; }
+  .node-shared .node-rect  { fill: #fdf5f5; stroke: #8b3a3a; stroke-width: 1.5; stroke-dasharray: 4,2; }
 
   .node-label {
     font-family: 'Jost', sans-serif;
@@ -133,7 +140,7 @@
   .node-root .node-label   { fill: var(--white); font-size: 13px; font-weight: 500; }
   .node-l1 .node-label     { fill: var(--white); font-size: 10.5px; font-weight: 400; }
   .node-l2 .node-label     { fill: var(--navy); font-size: 9.5px; font-weight: 300; }
-  .node-shared .node-label { fill: var(--shared); font-size: 9.5px; font-weight: 400; }
+  .node-shared .node-label { fill: #8b3a3a; font-size: 9.5px; font-weight: 400; }
 
   .collapse-indicator {
     font-size: 9px; fill: var(--gold); font-weight: 600;
@@ -210,30 +217,7 @@
   .ld-root   { background: var(--navy); border: 2px solid var(--gold); }
   .ld-l1     { background: var(--navy-mid); border: 1.5px solid var(--gold-lt); }
   .ld-l2     { background: var(--white); border: 1px solid var(--gray-lt); }
-  .ld-shared { background: #fdf5f5; border: 1.5px dashed var(--shared); }
-
-  /* ── Panel de alertas ── */
-  #warnings-btn {
-    position: fixed; top: 108px; right: 20px; z-index: 100;
-  }
-  #warnings-panel {
-    position: fixed; top: 145px; right: 20px; z-index: 100;
-    background: rgba(255,255,255,.96);
-    border: 1px solid #f4c2a0;
-    border-left: 3px solid #c07030;
-    border-radius: 10px;
-    padding: 14px 16px;
-    max-width: 340px; max-height: 300px; overflow-y: auto;
-    display: none;
-    box-shadow: 0 2px 12px rgba(0,0,0,.12);
-    font-size: .72rem;
-  }
-  #warnings-panel h3 {
-    font-family: 'Cormorant Garamond', serif;
-    font-size: .88rem; color: #7a3010; margin-bottom: 8px;
-  }
-  .warn-item { color: #5a3010; margin: 5px 0; padding: 4px 0; border-bottom: 1px solid #f4dece; }
-  .warn-type { font-weight: 500; color: #c07030; }
+  .ld-shared { background: #fdf5f5; border: 1.5px dashed #8b3a3a; }
 
 
   /* ── Ajustes responsivos para celular / iframe Google Sites ── */
@@ -243,17 +227,17 @@
     }
 
     #header {
-      padding: 10px 14px;
-      min-height: 78px;
-      align-items: flex-start;
-      gap: 8px;
+      padding: 10px 12px;
+      min-height: auto;
+      align-items: center;
+      gap: 6px;
     }
 
     #header h1 {
-      font-size: clamp(1.05rem, 5.2vw, 1.55rem);
-      line-height: 1.08;
-      letter-spacing: .02em;
-      max-width: calc(100vw - 72px);
+      font-size: clamp(0.95rem, 4.5vw, 1.2rem);
+      line-height: 1.1;
+      letter-spacing: .015em;
+      word-break: break-word;
     }
 
     #header .subtitle {
@@ -261,83 +245,72 @@
     }
 
     #header-logo {
-      font-size: 1.35rem;
+      font-size: 1.2rem;
       flex-shrink: 0;
-      margin-top: 2px;
+      margin-left: 8px;
     }
 
     #toolbar {
-      top: 78px;
+      top: auto;
+      bottom: 0;
       left: 0;
       right: 0;
-      transform: none;
-      width: 100%;
-      max-width: 100vw;
+      border-bottom: none;
+      border-top: 1px solid var(--gray-lt);
+      padding: 8px;
+      gap: 6px;
+      background: rgba(255,255,255,.98);
+      max-height: 58px;
       justify-content: flex-start;
-      gap: 8px;
-      overflow-x: auto;
-      overflow-y: hidden;
-      border-left: 0;
-      border-right: 0;
-      border-radius: 0;
-      padding: 8px 10px;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
-    }
-
-    #toolbar::-webkit-scrollbar {
-      display: none;
     }
 
     .btn {
-      flex: 0 0 auto;
       font-size: .64rem;
-      line-height: 1.15;
-      letter-spacing: .045em;
-      padding: 7px 11px;
-      border-radius: 18px;
-      max-width: 132px;
-      white-space: normal;
-      text-align: center;
+      padding: 8px 12px;
+      border-radius: 16px;
+      min-height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     #canvas {
       inset: 0;
       width: 100%;
       height: 100dvh;
+      padding-bottom: 58px;
+    }
+
+    svg {
+      margin-bottom: 0;
     }
 
     #stats {
       left: 10px;
       right: 10px;
-      bottom: 10px;
+      bottom: 68px;
       min-width: 0;
       width: auto;
-      max-height: 132px;
+      max-height: 140px;
       overflow-y: auto;
       padding: 12px 14px;
-      border-radius: 14px;
+      border-radius: 12px;
     }
 
     #stats h3 {
-      font-size: .95rem;
+      font-size: .85rem;
       margin-bottom: 7px;
       padding-bottom: 5px;
     }
 
     .stat-row {
       font-size: .68rem;
-      gap: 8px;
+      gap: 10px;
       margin: 3px 0;
     }
 
     #legend {
       display: none;
-    }
-
-    #warnings-btn,
-    #warnings-panel {
-      display: none !important;
     }
 
     #tooltip {
@@ -347,18 +320,34 @@
 
   @media (max-width: 420px) {
     #stats {
-      max-height: 112px;
+      max-height: 120px;
+      padding: 10px 12px;
+    }
+
+    #stats h3 {
+      font-size: .8rem;
+      margin-bottom: 6px;
+      padding-bottom: 4px;
     }
 
     .stat-row {
       font-size: .64rem;
+      margin: 2px 0;
+    }
+
+    #header h1 {
+      font-size: clamp(0.9rem, 4vw, 1.1rem);
+    }
+
+    .btn {
+      font-size: .6rem;
+      padding: 7px 10px;
     }
   }
 
-
   @media print {
-    #toolbar, #stats, #legend, #warnings-btn, #warnings-panel, #header { display: none !important; }
-    #canvas { top: 0; }
+    #toolbar, #stats, #legend, #header { display: none !important; }
+    #canvas { top: 0; padding-bottom: 0; }
     body { overflow: visible; }
     svg { width: 100%; height: auto; }
   }
@@ -375,31 +364,10 @@
 </div>
 
 <div id="toolbar">
-  <button class="btn btn-primary" onclick="centerView()">⌖ Centrar vista</button>
-  <button class="btn btn-secondary" onclick="expandAll()">▿ Expandir genealogía</button>
-  <button class="btn btn-secondary" onclick="collapseAll()">▸ Contraer genealogía</button>
-  <button class="btn btn-gold" onclick="window.print()">⎙ Exportar a PDF</button>
-</div>
-
-<button id="warnings-btn" class="btn btn-danger" onclick="toggleWarnings()">⚠ Revisar registros</button>
-<div id="warnings-panel">
-  <h3>Alertas de consistencia del registro</h3>
-  <div class="warn-item"><span class="warn-type">Orden de apellidos invertido:</span> "Gaxiola Cuevas Nallely" — probable forma canónica: Nallely Gaxiola Cuevas</div>
-  <div class="warn-item"><span class="warn-type">Variante en el nombre de pila:</span> "Angrid Alina Guradado Norman" vs "Ingrid Alina Guradado Norman" — mismo apellido; probable registro duplicado de la misma persona</div>
-  <div class="warn-item"><span class="warn-type">Probable error tipográfico:</span> "Esim Sugey Sandoval Sicairos" vs "Eslim Sugey Sandoval Sicairos" — se recomienda verificar el registro original</div>
-  <div class="warn-item"><span class="warn-type">Apellidos transpuestos:</span> "Álvaro Rodríguez Montoya" (primera generación) vs "Álvaro Montoya Rodríguez" (descendencia de Roberto Gutiérrez Dorado) — probable mismo individuo</div>
-  <div class="warn-item"><span class="warn-type">Apellidos transpuestos:</span> "Dulce María Arispuro Dominguez" vs "Dulce María Domínguez Arispuro" — aparece además como integrante de la primera generación académica directa</div>
-  <div class="warn-item"><span class="warn-type">Probable registro duplicado:</span> "Maribel Dominguez Rodríguez" vs "Mariel Dominguez Rodriguez" — se recomienda cotejar con el registro oficial</div>
-  <div class="warn-item"><span class="warn-type">Filiación académica colegiada:</span> Evelyn Isabel Osuna Gallardo registra vínculo académico en tres líneas de descendencia: Saraid Mora Rochín, Edith Oliva Cuevas Rodríguez y Álvaro Rodríguez Montoya</div>
-  <div class="warn-item"><span class="warn-type">Filiación académica colegiada:</span> Nadia Judith del Río Ruiz Esparza registra vínculo académico en las líneas de Mariela Menchaca Armenta y Jesus Aguayo Rojas</div>
-  <div class="warn-item"><span class="warn-type">Filiación académica colegiada:</span> María Fernanda Álvarez Casillas — vínculo académico en las líneas de Edith Oliva Cuevas Rodríguez y Dulce María Arispuro Dominguez</div>
-  <div class="warn-item"><span class="warn-type">Filiación académica colegiada:</span> Maciel Rivera Atondo — vínculo académico en las líneas de Edith Oliva Cuevas Rodríguez y Oscar Abel Sánchez Velázquez</div>
-  <div class="warn-item"><span class="warn-type">Filiación académica colegiada:</span> Ana Rocío Cervantes Osuna — vínculo académico en las líneas de Oscar Daniel Arguelles López y Álvaro Rodríguez Montoya</div>
-  <div class="warn-item"><span class="warn-type">Filiación académica colegiada:</span> Ramona Julieta Espinoza Moreno — vínculo académico en las líneas de Saraid Mora Rochín y Roberto Gutiérrez Dorado</div>
-  <div class="warn-item"><span class="warn-type">Filiación académica colegiada:</span> Jesús Horacio Pérez Uriarte — vínculo académico en las líneas de Saraid Mora Rochín y Roberto Gutiérrez Dorado</div>
-  <div class="warn-item"><span class="warn-type">Registro duplicado en la misma línea:</span> Carlos Francisco Ramos Ferra aparece dos veces dentro de la descendencia de Roberto Gutiérrez Dorado</div>
-  <div class="warn-item"><span class="warn-type">Registro duplicado en la misma línea:</span> María del Rosario Galindo Atienzo aparece dos veces dentro de la descendencia de Roberto Gutiérrez Dorado</div>
-</div>
+  <button class="btn btn-primary" onclick="centerView()">⌖ Centrar</button>
+  <button class="btn btn-secondary" onclick="expandAll()">▿ Expandir</button>
+  <button class="btn btn-secondary" onclick="collapseAll()">▸ Contraer</button>
+  <button class="btn btn-gold" onclick="window.print()">⎙ Exportar PDF</button>
 </div>
 
 <div id="canvas"></div>
@@ -429,9 +397,9 @@
 </div>
 
 <script>
-// ═══════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 //  DATOS — Genealogía académica de Jorge Milán Carrillo
-// ═══════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 const rawData = {
   root: "Jorge Milán Carrillo",
   branches: [
@@ -565,9 +533,9 @@ const treeData = {
   }))
 };
 
-// ═══════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 //  RENDERIZADO D3
-// ═══════════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 let W = window.innerWidth;
 let H = window.innerHeight;
 let cx = W / 2;
@@ -670,7 +638,7 @@ function update() {
   const linkData = g.selectAll(".link").data(links, d => d.target.data.id);
 
   linkData.enter().append("path")
-    .attr("class", d => "link" + (d.target.data.shared ? " link-shared":""))
+    .attr("class", "link")
     .attr("opacity",0)
   .merge(linkData)
     .transition().duration(500)
@@ -773,11 +741,16 @@ centerView();
 
 function centerView() {
   const mobile = isMobileViewport();
-  const scale = mobile
-    ? Math.max(0.32, Math.min(0.48, (W - 28) / 980))
-    : 0.55;
+  let scale, yOffset;
 
-  const yOffset = mobile ? H * 0.46 : cy;
+  if (mobile) {
+    const viewportHeight = window.innerHeight - 60;
+    scale = Math.max(0.28, Math.min(0.45, (W - 20) / 1000));
+    yOffset = viewportHeight * 0.50;
+  } else {
+    scale = 0.55;
+    yOffset = cy;
+  }
 
   svg.transition().duration(600).call(
     zoom.transform,
@@ -793,11 +766,6 @@ function expandAll() {
 function collapseAll() {
   root.children.forEach(c => collapse(c));
   update();
-}
-
-function toggleWarnings() {
-  const p = document.getElementById("warnings-panel");
-  p.style.display = p.style.display === "none" ? "block" : "none";
 }
 
 window.addEventListener("resize", () => {
